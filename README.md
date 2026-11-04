@@ -25,3 +25,9 @@ Il dominio della fonte deve essere consentito dalla rete. Non sono richieste cre
 Importare un CSV `data;iscrizioni` scegliendo prima fra iscrizioni giornaliere e totale cumulato. Sono ammesse date ISO o GG/MM/AAAA. Il confronto usa giorno e mese della lettura corrente Endu, nell’anno precedente (29 febbraio → 28 febbraio). La variazione è `(attuali - storici) / storici * 100`; con storico zero la percentuale non è definita.
 
 È necessario il dato della data esatta. Per i giornalieri occorre includere ogni giorno dall’inizio della raccolta nell’anno precedente, anche con zero; le lacune intermedie vengono rifiutate. I cumulati devono essere non decrescenti. Lo storico viene salvato in localStorage nel browser corrente, può essere sostituito o rimosso e non è condiviso. L’ultimo confronto segue la data dell’ultima lettura Endu e può confrontare il dato attuale infragiornaliero con lo storico di fine giornata.
+
+### Confronto settimanale
+
+Selezionando iscrizioni settimanali, il sistema somma le nuove iscrizioni fino alla settimana più vicina al giorno/mese dell’anno precedente. La data scelta deve distare al massimo 3,5 giorni; in parità si preferisce la precedente. Le settimane devono essere consecutive. La dashboard mostra data obiettivo e data effettivamente usata.
+
+Il pulsante **Usa storico Pisa 2025** carica `data/pisa-2025-settimane.csv`, convertito dalla riga 2025 del file utente `Iscritti_per_settimana.xls`: ogni riferimento è la data gara 21/12/2025 meno N settimane. I valori sono interpretati come nuove iscrizioni settimanali, senza stime giornaliere. La somma comprende solo le 21 settimane presenti nel file. Verificare che lo storico includa le stesse gare del totale Endu (in particolare Christmas Run). Al 04/11 il riferimento selezionato è 02/11/2025, totale 1.418.
