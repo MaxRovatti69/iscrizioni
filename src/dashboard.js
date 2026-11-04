@@ -9,9 +9,33 @@ let events=[{id:'pisa',name:'Maratona di Pisa',url:PISA_URL,history:null}], sele
 const live=new Map();
 let busy=false, timer;
 function message(text){$('events-message').textContent=text;}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(events));message('Configurazione salvata in questo browser.');}catch{message('Salvataggio non disponibile: le modifiche si perderanno chiudendo la pagina.');}}
+let remote=false, revision=0, csrfToken='', saveQueue=Promise.resolve(), saveFailed=false;
+try {
+  const response=await fetch('/api/events');
+  if(response.status===401){location.href='/login';throw new Error('Accesso richiesto.');}
+  if(response.ok){const state=await response.json();if(Array.isArray(state.events)&&state.events.length){events=state.events;selected=events[0].id;revision=state.revision;csrfToken=state.csrf;remote=true;}}
+  else if(response.status!==404)throw new Error('Archivio del server non disponibile. Ricarica la pagina.');
+}catch(error){
+  if(error.message==='Accesso richiesto.')throw error;
+  message(error.message);
+  // A network error must not silently switch a shared deployment to browser storage.
+  throw error;
+}
+function save(){
+  if(!remote){try{localStorage.setItem(KEY,JSON.stringify(events));message('Configurazione salvata in questo browser.');}catch{message('Salvataggio non disponibile: le modifiche si perderanno chiudendo la pagina.');}return;}
+  const snapshot=JSON.parse(JSON.stringify(events));
+  message('Salvataggio sul server…');
+  saveQueue=saveQueue.then(async()=>{
+    if(saveFailed)throw new Error('Salvataggio sospeso. Ricarica la pagina prima di continuare.');
+    const response=await fetch('/api/events',{method:'PUT',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},body:JSON.stringify({events:snapshot,revision})});
+    const state=await response.json();
+    if(!response.ok)throw new Error(state.error||'Salvataggio sul server non riuscito.');
+    revision=state.revision;message('Eventi e storici salvati sul server.');
+  }).catch(error=>{saveFailed=true;message(`${error.message} Modifiche non salvate: ricarica la pagina.`);});
+}
+
 try{
-  const raw=localStorage.getItem(KEY);
+  const raw=remote?null:localStorage.getItem(KEY);
   if(raw){
     const saved=JSON.parse(raw);
     if(!Array.isArray(saved)||!saved.length)throw new Error();
@@ -24,7 +48,7 @@ try{
     }
     events=saved;selected=events[0].id;
   }else{
-    const previous=JSON.parse(localStorage.getItem('pisa-registration-history-v1'));
+    const previous=remote?null:JSON.parse(localStorage.getItem('pisa-registration-history-v1'));
     if(previous){parseHistory(previous.text,previous.mode);events[0].history=previous;}
   }
 }catch{message('Configurazione precedente non leggibile. È mostrato l’evento Pisa predefinito.');}
@@ -105,3 +129,11 @@ $('history-pisa').addEventListener('click',async()=>{
 });
 $('history-clear').addEventListener('click',()=>{active().history=null;save();settings();render();$('history-message').textContent='Storico rimosso dall’evento selezionato.';});
 settings();render();refresh();
+
+if(remote){
+  document.getElementById('storage-info').textContent='Eventi e storici sono conservati sul server e disponibili dopo l’accesso da altri dispositivi.';
+  const form=document.createElement('form');form.method='post';form.action='/logout';
+  const token=document.createElement('input');token.type='hidden';token.name='csrf';token.value=csrfToken;
+  const logout=document.createElement('button');logout.type='submit';logout.className='secondary';logout.textContent='Esci';
+  form.append(token,logout);document.querySelector('header').append(form);
+}

@@ -1,10 +1,12 @@
 # Iscrizioni Endu
 
+**Versione privata online:** configurazione Render con login e archivio condiviso pronta in [DEPLOY.md](DEPLOY.md). Il deploy e l’attivazione dell’hosting devono essere eseguiti dall’account del proprietario; nessun servizio è stato attivato da questa configurazione.
+
 Dashboard del numero totale di iscritti alla **Maratona di Pisa** (evento Endu `00102708`).
 
 ## Avvio
 
-Richiede Python 3; Node.js 20+ serve per eseguire i test. Nessuna dipendenza esterna da installare.
+L’anteprima locale richiede Python 3; Node.js 20+ serve per i test JavaScript. Per i test della versione privata e il deploy installare anche `requirements.txt` in un ambiente virtuale, come descritto in DEPLOY.md.
 Dalla cartella del progetto: `npm run dev`. Il server usa la porta 5173. Test: `npm test`.
 
 In GitHub Codespaces, aprire la scheda **Ports / Porte** e selezionare **Apri nel browser** per la porta **5173**, mantenendo il terminale del server in esecuzione. Se la porta non compare, aggiungerla manualmente. Il link dell’anteprima si apre nel browser, non nel terminale.
