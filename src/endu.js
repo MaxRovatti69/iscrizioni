@@ -2,8 +2,16 @@ import {entrantCount} from './endu-data.js';
 const container = document.getElementById('endu-counters');
 const status = document.getElementById('endu-status');
 const button = document.getElementById('endu-refresh');
+const REFRESH_INTERVAL = 6 * 60 * 60 * 1000;
 let lastSuccess = null;
+let lastAttempt = 0;
+let refreshing = false;
+let refreshTimer;
 async function refresh() {
+  if (refreshing) return;
+  refreshing = true;
+  lastAttempt = Date.now();
+  clearTimeout(refreshTimer);
   button.disabled = true;
   status.textContent = 'Aggiornamento del numero di iscritti…';
   try {
@@ -21,7 +29,15 @@ async function refresh() {
     status.textContent = `Ultima lettura: ${lastSuccess} (ora italiana). Non indica la data di aggiornamento alla fonte.`;
   } catch (error) {
     status.textContent = `${error.name === 'TimeoutError' ? 'Endu non ha risposto in tempo.' : error.message}${lastSuccess ? ` Valore precedente mantenuto, letto il ${lastSuccess}: potrebbe non essere aggiornato.` : ' Nessun dato Endu caricato.'}`;
-  } finally { button.disabled = false; }
+  } finally {
+    button.disabled = false;
+    refreshing = false;
+    refreshTimer = setTimeout(refresh, REFRESH_INTERVAL);
+  }
 }
 button.addEventListener('click', refresh);
+// Recover overdue updates when a sleeping or background tab becomes active.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && Date.now() - lastAttempt >= REFRESH_INTERVAL) refresh();
+});
 refresh();

@@ -16,6 +16,6 @@ https://egs-eventi.s3.eu-west-1.amazonaws.com/00000000/00100000/00102700/0010270
 
 Il formato atteso è `{"data":[{"count":"3403"}]}`. Il numero viene verificato e formattato in italiano. Nessuna lettura degli altri JSON.
 
-Il browser richiede `/api/endu/counters` all’apertura e premendo Aggiorna Endu. L’orario indica la lettura, non l’aggiornamento alla fonte. In caso di errore rimane il valore precedente con avviso. Le richieste hanno un timeout; il server accetta solo l’URL fisso e mantiene la verifica TLS.
+Il browser richiede `/api/endu/counters` all’apertura, automaticamente ogni 6 ore mentre la pagina è aperta e premendo Aggiorna Endu. Se la scheda viene sospesa dal browser, una lettura scaduta viene recuperata quando torna visibile. Il server Codespaces deve rimanere attivo; non sono pianificate letture a pagina chiusa. L’orario indica la lettura, non l’aggiornamento alla fonte. In caso di errore rimane il valore precedente con avviso. Le richieste hanno un timeout; il server accetta solo l’URL fisso e mantiene la verifica TLS.
 
 Il dominio della fonte deve essere consentito dalla rete. Non sono richieste credenziali. I precedenti moduli CSV rimangono nel repository ma non sono caricati dall’interfaccia attuale.
