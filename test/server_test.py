@@ -5,6 +5,19 @@ import server
 
 
 class CounterTests(unittest.TestCase):
+    def test_only_supported_endu_sources_are_allowed(self):
+        self.assertEqual(server.validate_source(server.BASE + 'entrants.json'), server.BASE + 'entrants.json')
+        for url in ['http://localhost/entrants.json', server.BASE + 'counters.json', server.BASE + 'entrants.json?url=x']:
+            with self.assertRaises(ValueError):
+                server.load_counters(url)
+
+    def test_event_url_selects_its_own_source(self):
+        url = server.BASE.replace('00102708', '00102709') + 'entrants.json'
+        with patch('server.read_counter', return_value=('entrants.json', {'data': {'data': [{'count': '12'}]}})) as read:
+            payload = server.load_counters(url)
+        read.assert_called_once_with('entrants.json', base=url.removesuffix('entrants.json'))
+        self.assertEqual(payload['eventId'], '00102709')
+
     def test_only_entrants_is_requested(self):
         with patch('server.read_counter', return_value=('entrants.json', {'data': {'data': [{'count': '3403'}]}})) as read:
             payload = server.load_counters()

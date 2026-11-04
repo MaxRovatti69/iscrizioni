@@ -34,4 +34,14 @@ Il pulsante **Usa storico Pisa 2025** carica `data/pisa-2025-settimane.csv`, con
 
 ## Layout eventi
 
-Il riepilogo è una tabella con una riga per evento: nome, iscritti attuali, storico selezionato con data obiettivo, differenza e variazione percentuale. I dati restano su una sola riga; su schermi stretti la tabella scorre orizzontalmente. Attualmente è configurata solo Maratona di Pisa (`00102708`). Per eventi futuri occorrerà configurare i rispettivi endpoint e storici, mantenendoli associati alla propria riga.
+Il riepilogo è una tabella con una riga per evento: nome, iscritti attuali, storico selezionato con data obiettivo, differenza e variazione percentuale. I dati restano su una sola riga; su schermi stretti la tabella scorre orizzontalmente. Maratona di Pisa (`00102708`) è l’evento predefinito. Nel pannello Gestisci eventi è possibile aggiungere altre righe senza JSON e associare a ognuna il proprio storico.
+
+## Eventi prima dell’apertura iscrizioni
+
+1. In **Gestisci eventi**, inserire il nome (anche l’edizione, es. Pisa 2027) e premere **Crea evento**. La riga mostra “Iscrizioni non ancora aperte”; non vengono effettuate richieste per eventi senza URL.
+2. Selezionare l’evento da configurare e importare il suo CSV nel pannello storico. Il file Pisa 2025 predefinito è disponibile solo per la riga Pisa originale. Ogni importazione sostituisce lo storico solo dell’evento selezionato.
+3. All’apertura iscrizioni, selezionare l’evento e aggiungere l’URL `entrants.json` nel campo facoltativo, quindi **Salva evento**. Sono ammessi soltanto URL HTTPS del bucket Endu con il percorso standard. Il backend legge la fonte corrispondente alla riga.
+
+Senza dato attuale, differenza e percentuale sono indicate con “—”. Lo storico può essere conservato anche prima che sia disponibile l’anno da confrontare. Ogni riga ha il proprio stato di lettura: un errore su un evento non blocca gli altri. I dati di configurazione e lo storico sono conservati esclusivamente nel localStorage del browser corrente; il precedente storico Pisa viene migrato automaticamente al primo utilizzo.
+
+Dopo l’aggiornamento di questa versione occorre **riavviare `npm run dev`** per caricare il backend con supporto a più URL.
