@@ -31,3 +31,7 @@ Importare un CSV `data;iscrizioni` scegliendo prima fra iscrizioni giornaliere e
 Selezionando iscrizioni settimanali, il sistema somma le nuove iscrizioni fino alla settimana più vicina al giorno/mese dell’anno precedente. La data scelta deve distare al massimo 3,5 giorni; in parità si preferisce la precedente. Le settimane devono essere consecutive. La dashboard mostra data obiettivo e data effettivamente usata.
 
 Il pulsante **Usa storico Pisa 2025** carica `data/pisa-2025-settimane.csv`, convertito dalla riga 2025 del file utente `Iscritti_per_settimana.xls`: ogni riferimento è la data gara 21/12/2025 meno N settimane. I valori sono interpretati come nuove iscrizioni settimanali, senza stime giornaliere. La somma comprende solo le 21 settimane presenti nel file. Verificare che lo storico includa le stesse gare del totale Endu (in particolare Christmas Run). Al 04/11 il riferimento selezionato è 02/11/2025, totale 1.418.
+
+## Layout eventi
+
+Il riepilogo è una tabella con una riga per evento: nome, iscritti attuali, storico selezionato con data obiettivo, differenza e variazione percentuale. I dati restano su una sola riga; su schermi stretti la tabella scorre orizzontalmente. Attualmente è configurata solo Maratona di Pisa (`00102708`). Per eventi futuri occorrerà configurare i rispettivi endpoint e storici, mantenendoli associati alla propria riga.

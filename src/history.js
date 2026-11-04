@@ -4,14 +4,20 @@ const storageKey = 'pisa-registration-history-v1';
 let history = null, current = null, retrievedAt = null;
 function render() {
   $('history-result').textContent='';
+  $('history-baseline').textContent='Nessuno storico caricato';
+  $('history-delta').textContent='—';
+  $('history-percent').textContent='—';
   if (!history) return;
   $('history-info').textContent=`${history.rows.length} date caricate · ${history.rows[0].date} → ${history.rows.at(-1).date} · ${history.mode==='weekly'?'Iscrizioni settimanali':history.mode==='daily'?'Iscrizioni giornaliere':'Totali cumulati'}`;
   if (current===null) { $('history-result').textContent='In attesa del totale Endu.'; return; }
   try {
     const result = compareHistory(history,current,new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(retrievedAt)));
     const format=n=>n.toLocaleString('it-IT',{maximumFractionDigits:1});
-    $('history-result').textContent=`${format(current)} iscritti attuali · ${format(result.past)} ${result.weekDate ? `alla settimana del ${result.weekDate} (data obiettivo ${result.target})` : `al ${result.target}`} · ${result.delta>=0?'+':''}${format(result.delta)} iscritti · ${result.percent===null?'Percentuale non calcolabile: base storica zero':`${result.percent>=0?'+':''}${format(result.percent)}% rispetto all’anno precedente`}`;
-  } catch(error) { $('history-result').textContent=error.message; }
+    $('history-baseline').textContent=`${format(result.past)} ${result.weekDate ? `alla settimana del ${result.weekDate} (data obiettivo ${result.target})` : `al ${result.target}`}`;
+    $('history-delta').textContent=`${result.delta>=0?'+':''}${format(result.delta)} iscritti`;
+    $('history-percent').textContent=result.percent===null?'Non calcolabile: base zero':`${result.percent>=0?'+':''}${format(result.percent)}% rispetto all’anno precedente`;
+
+  } catch(error) { $('history-baseline').textContent='Confronto non disponibile'; $('history-result').textContent=error.message; }
 }
 document.addEventListener('endu-count',event=>{current=event.detail.count;retrievedAt=event.detail.retrievedAt;render();});
 $('history-file').addEventListener('change',async event=>{

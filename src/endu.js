@@ -1,5 +1,5 @@
 import {entrantCount} from './endu-data.js';
-const container = document.getElementById('endu-counters');
+const counter = document.getElementById('endu-count');
 const status = document.getElementById('endu-status');
 const button = document.getElementById('endu-refresh');
 const REFRESH_INTERVAL = 6 * 60 * 60 * 1000;
@@ -20,11 +20,7 @@ async function refresh() {
     const source = payload.sources?.['entrants.json'];
     if (!response.ok || !source || !Object.hasOwn(source, 'data')) throw new Error(source?.error || 'Numero di iscritti non disponibile.');
     const count = entrantCount(source.data);
-    const card = document.createElement('article');
-    const heading = document.createElement('h3'); heading.textContent = 'Iscritti totali';
-    const value = document.createElement('span'); value.textContent = count.toLocaleString('it-IT');
-    card.append(heading, value);
-    container.replaceChildren(card);
+    counter.textContent = `${count.toLocaleString('it-IT')} iscritti attuali`;
     document.dispatchEvent(new CustomEvent('endu-count', {detail:{count,retrievedAt:payload.retrievedAt}}));
     lastSuccess = new Date(payload.retrievedAt).toLocaleString('it-IT',{timeZone:'Europe/Rome'});
     status.textContent = `Ultima lettura: ${lastSuccess} (ora italiana). Non indica la data di aggiornamento alla fonte.`;
