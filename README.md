@@ -1,6 +1,6 @@
 # Iscrizioni Endu
 
-Dashboard del numero totale di iscritti all’evento `00102708`.
+Dashboard del numero totale di iscritti alla **Maratona di Pisa** (evento Endu `00102708`).
 
 ## Avvio
 
