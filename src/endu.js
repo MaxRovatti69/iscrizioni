@@ -25,6 +25,7 @@ async function refresh() {
     const value = document.createElement('span'); value.textContent = count.toLocaleString('it-IT');
     card.append(heading, value);
     container.replaceChildren(card);
+    document.dispatchEvent(new CustomEvent('endu-count', {detail:{count,retrievedAt:payload.retrievedAt}}));
     lastSuccess = new Date(payload.retrievedAt).toLocaleString('it-IT',{timeZone:'Europe/Rome'});
     status.textContent = `Ultima lettura: ${lastSuccess} (ora italiana). Non indica la data di aggiornamento alla fonte.`;
   } catch (error) {
