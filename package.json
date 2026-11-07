@@ -1,6 +1,0 @@
-{
-  "name": "iscrizioni-dashboard",
-  "private": true,
-  "type": "module",
-  "scripts": { "dev": "python3 server.py", "test": "node --test && python3 -m unittest discover -s test -p '*_test.py'" }
-}

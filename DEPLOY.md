@@ -1,37 +1,64 @@
-# Dashboard privata su Render
+# Pubblicazione privata su hosting PHP
 
-Questa configurazione prepara un sito HTTPS con login riservato e archivio SQLite condiviso. Non è stata creata alcuna risorsa hosting né attivato alcun pagamento.
+## Prima di caricare i file
 
-## Pubblicazione
+Verificare nel pannello del provider:
 
-1. Accedi a https://dashboard.render.com/ e collega l’account GitHub che può leggere `MaxRovatti69/iscrizioni`.
-2. Scegli **New → Blueprint**, seleziona quel repository e il branch `main`. Render legge `render.yaml`.
-3. Nella configurazione imposta **DASHBOARD_PASSWORD**: scegli una password robusta di almeno 12 caratteri, da conservare in un gestore password. Non scriverla nel repository o in chat. Il nome utente iniziale è **admin**; puoi cambiarlo con **DASHBOARD_USER**.
-4. Controlla i costi indicati da Render prima di confermare: il file richiede un servizio **Starter** e un **disco persistente da 1 GB**. Il piano gratuito senza disco non conserva in modo affidabile questi dati fra i deploy.
-5. Conferma la creazione. Dopo il deploy apri l’URL HTTPS fornito da Render ed esegui l’accesso. **APP_SECRET** viene generata da Render; non modificarla durante i normali deploy, per non invalidare le sessioni.
+- PHP 8.2+ con **cURL**, **PDO SQLite** e sessioni.
+- Certificato HTTPS attivo.
+- Una cartella persistente scrivibile per SQLite e sessioni, **fuori dalla cartella pubblica**.
+- Accesso HTTPS al bucket Endu e cron PHP ogni 5 minuti.
 
-Il comando di produzione è `gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 60`. Il disco è montato in `/var/data` e l’archivio è `/var/data/dashboard.sqlite3`. Mantieni una sola istanza con questa configurazione SQLite. Render deve poter raggiungere il dominio `egs-eventi.s3.eu-west-1.amazonaws.com`.
+Non servono Node.js, npm, Python, Composer, Docker o comandi di build. Se il piano supporta soltanto MySQL e non SQLite, va adattato l’archivio prima del deploy.
 
-## Uso e trasferimento dei dati
-
-La schermata di accesso protegge dashboard, JSON, storici e file del frontend. Un singolo account gestisce tutti gli eventi; le sessioni scadono dopo 12 ore. Il pulsante **Esci** termina la sessione del browser. Per avere account distinti per più persone serve un’ulteriore gestione utenti.
-
-Nel sito online eventi e storici vengono salvati sul disco del server e sono disponibili entrando da altri dispositivi. In caso di salvataggi concorrenti, l’app richiede di ricaricare anziché sovrascrivere modifiche di un’altra pagina.
-
-I dati precedentemente inseriti in Codespaces erano nel browser, legati all’indirizzo dell’anteprima: non si trasferiscono automaticamente al nuovo dominio. Nel nuovo sito ricrea gli eventi e importa i relativi CSV. Per Pisa è disponibile **Usa storico Pisa 2025**. Conserva i CSV originali e organizza il backup del database tramite gli strumenti dell’hosting: il disco persistente non sostituisce un backup.
-
-L’aggiornamento ogni 6 ore avviene mentre una pagina è aperta. Non è un servizio pianificato a browser chiuso.
-
-## Verifica prima dell’uso
-
-Aprendo l’URL in una finestra anonima deve apparire il login. Dopo l’accesso verifica la lettura Endu, crea un evento senza JSON e importa uno storico. Accedi da un altro browser per verificare la presenza dei dati salvati. Riavviando il servizio, eventi e storici devono rimanere disponibili sul disco.
-
-## Test in ambiente di sviluppo
+## Struttura consigliata
 
 ```
-python3 -m venv .local/venv
-.local/venv/bin/pip install -r requirements.txt
-PATH="$PWD/.local/venv/bin:$PATH" npm test
+cartella-app/
+  app/
+  bin/
+  data/
+  public/           ← document root del dominio o sottodominio
+  config.local.php  ← configurazione privata, mai in Git
+  var/              ← database, sessioni e lock; non accessibile dal web
 ```
 
-`npm run dev` mantiene l’anteprima locale di Codespaces, senza login e con archivio browser: **non usarlo come comando del sito pubblico**. Per il sito riservato si usa esclusivamente il comando Gunicorn sopra; l’avvio fallisce se APP_SECRET o DASHBOARD_PASSWORD non sono configurate.
+Caricare il progetto via Git o SFTP. Impostare la document root su **public/**. Se il provider non consente di modificarla, mettere `app/`, `bin/`, `data/`, configurazione e archivio in una cartella privata e adattare i percorsi di inclusione in `public/index.php`: non caricare tutto indistintamente nella directory web. Il file `.htaccess` alla radice nega l’accesso diretto ai sorgenti; non sostituisce una corretta document root e non ha effetto su Nginx.
+
+## Credenziali
+
+1. Eseguire `php bin/password.php` sul proprio computer con PHP o nel terminale dell’hosting. Digitare una password di almeno 12 caratteri: viene restituito solo il relativo hash.
+2. Copiare `config.example.php` come `config.local.php`.
+3. Impostare `username`, `password_hash` con l’hash generato, `data_dir` con il percorso privato scrivibile e `cookie_secure => true`.
+4. Conservare il file fuori da `public/`, con permessi di lettura limitati al proprio utente/processo PHP. Non inserire password o hash nel repository o in chat.
+
+In alternativa si possono usare le variabili `DASHBOARD_USER`, `DASHBOARD_PASSWORD_HASH`, `DASHBOARD_DATA_DIR`, `DASHBOARD_COOKIE_SECURE`. Per questa versione non sono più usate `APP_SECRET` e `DASHBOARD_PASSWORD` della precedente configurazione Python.
+
+L’avvio senza configurazione valida fallisce senza rendere pubblici eventi o dati. Un singolo account gestisce tutti gli eventi. La sessione dura al massimo 12 ore, ha cookie HttpOnly/SameSite e viene chiusa con **Esci**. Configurando più persone serve una successiva gestione utenti distinta.
+
+## Cron per i dati di ieri
+
+Nel pannello dell’hosting configurare, ogni cinque minuti, l’equivalente di:
+
+```
+*/5 * * * * /percorso/php /cartella-app/bin/collect.php
+```
+
+Usare la versione corretta di PHP indicata dal provider. Tutti i calcoli applicativi usano **Europe/Rome**. Il cron ogni 5 minuti funziona anche se il server usa UTC: il programma aggiorna ogni 6 ore e raccoglie una rilevazione tra 00:00 e 00:04:59 italiane. Non esporre il comando cron con un URL pubblico.
+
+Sono necessarie due mezzanotti consecutive prima di ottenere una stima di ieri. I conteggi effettivi giornalieri possono essere importati subito via CSV. I saldi da totali cumulati vengono etichettati come stime perché cancellazioni e rettifiche possono modificarli.
+
+Senza cron le pagine aperte continuano ad aggiornare ogni 6 ore; il dato di ieri potrebbe non essere disponibile. Non viene retrocalcolato dal totale corrente.
+
+## Verifiche dopo il caricamento
+
+1. Aprire l’URL in una finestra privata: deve comparire il login, non la dashboard.
+2. Entrare e verificare la lettura Endu.
+3. Creare un evento senza JSON e caricare il relativo storico.
+4. Accedere da un secondo browser: eventi e storici devono essere presenti.
+5. Verificare che `config.local.php`, `app/` e `var/dashboard.sqlite3` non siano accessibili dal web.
+6. Eseguire una volta il comando di raccolta, poi controllare le esecuzioni cron e i dati dopo due mezzanotti.
+
+Conservare backup completi del database. Il solo file JSON esportato dalla dashboard contiene eventi e storici, non tutte le rilevazioni giornaliere. Il cron e le scritture vanno sospesi durante una copia diretta del database.
+
+Queste modifiche sono state preparate nel repository. Nessun hosting viene creato o pubblicato automaticamente.

@@ -1,49 +1,84 @@
-# Iscrizioni Endu
+# Iscrizioni — PHP + React
 
-**Versione privata online:** configurazione Render con login e archivio condiviso pronta in [DEPLOY.md](DEPLOY.md). Il deploy e l’attivazione dell’hosting devono essere eseguiti dall’account del proprietario; nessun servizio è stato attivato da questa configurazione.
+Dashboard privata multi-evento, con una riga per evento: totale Endu, iscrizioni del giorno precedente, storico dell’anno precedente, differenza e percentuale. **Non richiede Node.js, npm, Python, Composer o una build.**
 
-Dashboard del numero totale di iscritti alla **Maratona di Pisa** (evento Endu `00102708`).
+## Requisiti
+
+- PHP **8.2 o superiore**, estensioni **curl** e **pdo_sqlite**, sessioni abilitate.
+- HTTPS sull’hosting e una cartella persistente scrivibile fuori dalla directory pubblica.
+- Accesso HTTPS a `egs-eventi.s3.eu-west-1.amazonaws.com`.
+- Un cron PHP ogni 5 minuti per raccogliere i dati anche a browser chiuso e a mezzanotte.
+
+Le istruzioni per hosting e credenziali sono in [DEPLOY.md](DEPLOY.md). Non serve Render se l’hosting esistente supporta questi requisiti.
 
 ## Avvio
 
-L’anteprima locale richiede Python 3; Node.js 20+ serve per i test JavaScript. Per i test della versione privata e il deploy installare anche `requirements.txt` in un ambiente virtuale, come descritto in DEPLOY.md.
-Dalla cartella del progetto: `npm run dev`. Il server usa la porta 5173. Test: `npm test`.
+1. Copiare `config.example.php` in `config.local.php` e compilare nome utente e hash della password. Generare l’hash con `php bin/password.php` (la password non viene salvata nel codice).
+2. Per la sola prova locale HTTP, impostare `cookie_secure => false` nel file locale.
+3. Eseguire dalla cartella del progetto:
 
-In GitHub Codespaces, aprire la scheda **Ports / Porte** e selezionare **Apri nel browser** per la porta **5173**, mantenendo il terminale del server in esecuzione. Se la porta non compare, aggiungerla manualmente. Il link dell’anteprima si apre nel browser, non nel terminale.
+```sh
+php -S 0.0.0.0:5173 -t public
+```
 
-## Fonte dati
+In Codespaces aprire la porta 5173 dalla scheda **Ports / Porte**. Per l’hosting pubblico usare Apache/PHP-FPM fornito dal provider, non il server di sviluppo PHP. In produzione mantenere `cookie_secure => true` e HTTPS.
 
-Il server legge esclusivamente:
-https://egs-eventi.s3.eu-west-1.amazonaws.com/00000000/00100000/00102700/00102708/data/entrants.json
+## Eventi e storici
 
-Il formato atteso è `{"data":[{"count":"3403"}]}`. Il numero viene verificato e formattato in italiano. Nessuna lettura degli altri JSON.
+La dashboard conserva eventi, storici e rilevazioni in SQLite sul server. Ogni evento può essere creato senza JSON: la riga mostra che le iscrizioni non sono ancora aperte. Quando il link è disponibile, incollarlo nella configurazione dell’evento. Sono ammessi soltanto i percorsi standard `entrants.json` sul bucket Endu; i redirect non vengono seguiti.
 
-Il browser richiede `/api/endu/counters` all’apertura, automaticamente ogni 6 ore mentre la pagina è aperta e premendo Aggiorna Endu. Se la scheda viene sospesa dal browser, una lettura scaduta viene recuperata quando torna visibile. Il server Codespaces deve rimanere attivo; non sono pianificate letture a pagina chiusa. L’orario indica la lettura, non l’aggiornamento alla fonte. In caso di errore rimane il valore precedente con avviso. Le richieste hanno un timeout; il server accetta solo l’URL fisso e mantiene la verifica TLS.
+Gli storici si importano come CSV UTF-8:
 
-Il dominio della fonte deve essere consentito dalla rete. Non sono richieste credenziali. I precedenti moduli CSV rimangono nel repository ma non sono caricati dall’interfaccia attuale.
+```csv
+data;iscrizioni
+2025-11-02;100
+2025-11-09;120
+```
 
-## Confronto annuale
+Selezionare **settimanali**, **giornalieri** o **cumulati** prima di importarli. Ogni importazione sostituisce solo lo storico dell’evento selezionato. Le date possono essere `AAAA-MM-GG` o `GG/MM/AAAA`. Si accettano virgola e punto e virgola come separatore. Includere i periodi a zero.
 
-Importare un CSV `data;iscrizioni` scegliendo prima fra iscrizioni giornaliere e totale cumulato. Sono ammesse date ISO o GG/MM/AAAA. Il confronto usa giorno e mese della lettura corrente Endu, nell’anno precedente (29 febbraio → 28 febbraio). La variazione è `(attuali - storici) / storici * 100`; con storico zero la percentuale non è definita.
+Il confronto settimanale somma le iscrizioni fino alla settimana più vicina al giorno/mese dell’anno precedente (distanza massima 3 giorni); mostra sia la data scelta sia quella obiettivo. Per giornalieri e cumulati serve la data esatta. Il 29 febbraio usa il 28 febbraio precedente. La variazione è `(attuali − storici) / storici × 100`; con base zero non viene mostrata una percentuale.
 
-È necessario il dato della data esatta. Per i giornalieri occorre includere ogni giorno dall’inizio della raccolta nell’anno precedente, anche con zero; le lacune intermedie vengono rifiutate. I cumulati devono essere non decrescenti. Lo storico viene salvato in localStorage nel browser corrente, può essere sostituito o rimosso e non è condiviso. L’ultimo confronto segue la data dell’ultima lettura Endu e può confrontare il dato attuale infragiornaliero con lo storico di fine giornata.
+Il pulsante **Usa storico Pisa 2025** usa i dati convertiti dall’Excel fornito, con date di riferimento calcolate come 21/12/2025 meno N settimane. Sono interpretati come nuove iscrizioni di ogni settimana. Verificare che lo storico includa lo stesso insieme di gare del totale Endu, in particolare Christmas Run.
 
-### Confronto settimanale
+## Iscrizioni di ieri
 
-Selezionando iscrizioni settimanali, il sistema somma le nuove iscrizioni fino alla settimana più vicina al giorno/mese dell’anno precedente. La data scelta deve distare al massimo 3,5 giorni; in parità si preferisce la precedente. Le settimane devono essere consecutive. La dashboard mostra data obiettivo e data effettivamente usata.
+La data visualizzata è selezionabile; “ieri” è sempre il giorno precedente a quella data nel fuso **Europe/Rome**, anche nei passaggi tra ora solare e legale.
 
-Il pulsante **Usa storico Pisa 2025** carica `data/pisa-2025-settimane.csv`, convertito dalla riga 2025 del file utente `Iscritti_per_settimana.xls`: ogni riferimento è la data gara 21/12/2025 meno N settimane. I valori sono interpretati come nuove iscrizioni settimanali, senza stime giornaliere. La somma comprende solo le 21 settimane presenti nel file. Verificare che lo storico includa le stesse gare del totale Endu (in particolare Christmas Run). Al 04/11 il riferimento selezionato è 02/11/2025, totale 1.418.
+Il JSON `entrants.json` espone un totale, non le date delle singole iscrizioni. La dashboard non può ricostruire retroattivamente il numero esatto di iscrizioni di ieri da quel solo totale.
 
-## Layout eventi
+- **Importato**: caricare un CSV `data;iscrizioni` in **Importa iscrizioni giornaliere CSV**. Ogni riga deve contenere le nuove iscrizioni di quel giorno, non il cumulato. Questi dati hanno precedenza sulle stime e vengono associati solo all’evento selezionato. Date già importate vengono aggiornate.
+- **Stima**: differenza tra le rilevazioni entro i primi 5 minuti della mezzanotte all’inizio e alla fine del giorno. È un saldo netto e può includere cancellazioni/rettifiche. Richiede il cron e due mezzanotti consecutive raccolte correttamente.
+- **Non disponibile**: mancano i dati necessari o il totale è diminuito; non viene mostrato uno zero inventato.
 
-Il riepilogo è una tabella con una riga per evento: nome, iscritti attuali, storico selezionato con data obiettivo, differenza e variazione percentuale. I dati restano su una sola riga; su schermi stretti la tabella scorre orizzontalmente. Maratona di Pisa (`00102708`) è l’evento predefinito. Nel pannello Gestisci eventi è possibile aggiungere altre righe senza JSON e associare a ognuna il proprio storico.
+Le rilevazioni a intervalli di 6 ore non vengono confuse con il giorno solare. Un dato storico non disponibile rimane tale finché non viene importato un conteggio effettivo. Cambiando il link di un evento, le rilevazioni del vecchio link non vengono riutilizzate come se appartenessero alla nuova fonte.
 
-## Eventi prima dell’apertura iscrizioni
+La tabella mantiene tutti i dati sulla stessa riga; su schermi stretti si scorre orizzontalmente. I totali storici selezionabili per data esistono solo per i giorni effettivamente rilevati, non vengono stimati all’indietro.
 
-1. In **Gestisci eventi**, inserire il nome (anche l’edizione, es. Pisa 2027) e premere **Crea evento**. La riga mostra “Iscrizioni non ancora aperte”; non vengono effettuate richieste per eventi senza URL.
-2. Selezionare l’evento da configurare e importare il suo CSV nel pannello storico. Il file Pisa 2025 predefinito è disponibile solo per la riga Pisa originale. Ogni importazione sostituisce lo storico solo dell’evento selezionato.
-3. All’apertura iscrizioni, selezionare l’evento e aggiungere l’URL `entrants.json` nel campo facoltativo, quindi **Salva evento**. Sono ammessi soltanto URL HTTPS del bucket Endu con il percorso standard. Il backend legge la fonte corrispondente alla riga.
+## Raccolta automatica
 
-Senza dato attuale, differenza e percentuale sono indicate con “—”. Lo storico può essere conservato anche prima che sia disponibile l’anno da confrontare. Ogni riga ha il proprio stato di lettura: un errore su un evento non blocca gli altri. I dati di configurazione e lo storico sono conservati esclusivamente nel localStorage del browser corrente; il precedente storico Pisa viene migrato automaticamente al primo utilizzo.
+```sh
+php bin/collect.php
+```
 
-Dopo l’aggiornamento di questa versione occorre **riavviare `npm run dev`** per caricare il backend con supporto a più URL.
+Il comando legge solo gli eventi con JSON configurato, al massimo ogni 6 ore, più la lettura di mezzanotte. Configurarlo **ogni 5 minuti** nel cron dell’hosting: decide da solo quando occorre una richiesta Endu. `--force` consente una raccolta immediata per diagnosi. Il pulsante **Aggiorna Endu** resta disponibile. Se il cron non è configurato, le pagine aperte aggiornano ogni 6 ore ma non garantiscono il dato di ieri.
+
+## Migrazione dalla vecchia versione
+
+Node.js, Python, Flask, Gunicorn e i relativi file sono stati rimossi dal progetto. React 18.3.1 è incluso in build di produzione già pronta, con licenze: nessun download da CDN durante l’uso e nessuna compilazione.
+
+- Per recuperare gli eventi della vecchia anteprima nello stesso browser e sullo stesso dominio usare **Recupera vecchia anteprima**, poi esportare eventi e storici in JSON e importarli sul nuovo hosting.
+- Per un database della precedente versione privata Python, arrestare il vecchio servizio e il cron, fare un backup e copiare `dashboard.sqlite3` nella nuova `data_dir`. La tabella di configurazione esistente viene conservata e le nuove tabelle aggiunte. Non copiare la vecchia cartella delle sessioni: occorre effettuare nuovamente l’accesso.
+- Le rilevazioni giornaliere iniziano con questa versione. Gli anni precedenti non possono essere ricostruiti dal JSON attuale.
+
+**Esporta eventi e storici** salva la configurazione, non l’intero archivio di rilevazioni e conteggi giornalieri. Per un backup completo salvare il database in modo consistente tramite il servizio hosting, con raccolta/scritture sospese durante la copia.
+
+## Test
+
+```sh
+php tests/run.php
+```
+
+La suite verifica confronti, validazione CSV, persistenza, isolamento eventi, mezzanotte, stime di ieri, dati effettivi importati e intervallo di raccolta. Non richiede librerie esterne.
+
+Sono inclusi anche `tests/http.php` e `tests/browser.php` per prove su **un server locale con database di test e credenziali di prova**, non sul servizio con dati reali. Le prove browser usano Chromium e un client Chrome DevTools scritto in PHP; non usano Node.js. Dettagli in [tests/README.md](tests/README.md).

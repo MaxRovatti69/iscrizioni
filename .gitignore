@@ -1,7 +1,11 @@
-__pycache__/
-*.py[cod]
-node_modules/
+/config.local.php
+/var/
+/.local/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
 .env
 .env.*
-.local/
-*.sqlite3
+__pycache__/
+*.py[cod]

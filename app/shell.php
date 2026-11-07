@@ -1,0 +1,2 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>"><title>Eventi · Iscrizioni</title><link rel="stylesheet" href="assets/style.css"><script defer src="vendor/react-18.3.1.min.js"></script><script defer src="vendor/react-dom-18.3.1.min.js"></script><script defer src="assets/app.js"></script></head><body><div id="root"><p>Caricamento dashboard…</p></div></body></html>
