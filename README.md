@@ -13,9 +13,9 @@ Le istruzioni per hosting e credenziali sono in [DEPLOY.md](DEPLOY.md). Non serv
 
 ## Avvio
 
-1. Copiare `config.example.php` in `config.local.php` e compilare nome utente e hash della password. Generare l’hash con `php bin/password.php` (la password non viene salvata nel codice).
-2. Per la sola prova locale HTTP, impostare `cookie_secure => false` nel file locale.
-3. Eseguire dalla cartella del progetto:
+1. Eseguire `php bin/setup.php --local` e scegliere nome utente e password (almeno 12 caratteri, da ripetere). Il file `config.local.php` viene creato automaticamente con il solo hash, senza copiarlo a mano. Un’eventuale cartella archivio già configurata viene mantenuta.
+2. Per l’hosting HTTPS eseguire invece `php bin/setup.php` senza `--local`, oppure configurare manualmente il file seguendo DEPLOY.md.
+3. Avviare la prova locale dalla cartella del progetto:
 
 ```sh
 php -S 0.0.0.0:5173 -t public

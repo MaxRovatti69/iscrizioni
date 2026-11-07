@@ -27,6 +27,10 @@ Caricare il progetto via Git o SFTP. Impostare la document root su **public/**. 
 
 ## Credenziali
 
+Procedura guidata consigliata: eseguire `php bin/setup.php` e scegliere nome utente e password. Il file privato e il relativo hash vengono salvati automaticamente, preservando l’eventuale percorso archivio esistente. Per la sola anteprima HTTP di Codespaces usare `php bin/setup.php --local`. La password va digitata due volte e non viene stampata.
+
+Configurazione manuale alternativa:
+
 1. Eseguire `php bin/password.php` sul proprio computer con PHP o nel terminale dell’hosting. Digitare una password di almeno 12 caratteri: viene restituito solo il relativo hash.
 2. Copiare `config.example.php` come `config.local.php`.
 3. Impostare `username`, `password_hash` con l’hash generato, `data_dir` con il percorso privato scrivibile e `cookie_secure => true`.
