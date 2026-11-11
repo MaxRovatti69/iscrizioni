@@ -48,9 +48,9 @@ Nel pannello dell’hosting configurare, ogni cinque minuti, l’equivalente di:
 */5 * * * * /percorso/php /cartella-app/bin/collect.php
 ```
 
-Usare la versione corretta di PHP indicata dal provider. Tutti i calcoli applicativi usano **Europe/Rome**. Il cron ogni 5 minuti funziona anche se il server usa UTC: il programma aggiorna ogni 6 ore e raccoglie una rilevazione tra 00:00 e 00:04:59 italiane. Non esporre il comando cron con un URL pubblico.
+Usare la versione corretta di PHP indicata dal provider. Tutti i calcoli applicativi usano **Europe/Rome**. Il cron ogni 5 minuti funziona anche se il server usa UTC: il programma aggiorna ogni 6 ore e raccoglie una rilevazione tra 04:00 e 04:04:59 italiane. Non esporre il comando cron con un URL pubblico.
 
-Sono necessarie due mezzanotti consecutive prima di ottenere una stima di ieri. I conteggi effettivi giornalieri possono essere importati subito via CSV. I saldi da totali cumulati vengono etichettati come stime perché cancellazioni e rettifiche possono modificarli.
+Sono necessarie due letture delle 04:00 di giorni consecutivi prima di ottenere una stima di ieri. Il dato mostrato per il 10 novembre, per esempio, sarà il totale dell’11 novembre alle 04:00 meno quello del 10 novembre alle 04:00. Prima della seconda lettura il dato rimane non disponibile. La stima segue questo intervallo, non il giorno solare. I conteggi effettivi giornalieri possono essere importati subito via CSV. I saldi da totali cumulati vengono etichettati come stime perché cancellazioni e rettifiche possono modificarli.
 
 Senza cron le pagine aperte continuano ad aggiornare ogni 6 ore; il dato di ieri potrebbe non essere disponibile. Non viene retrocalcolato dal totale corrente.
 
@@ -61,8 +61,12 @@ Senza cron le pagine aperte continuano ad aggiornare ogni 6 ore; il dato di ieri
 3. Creare un evento senza JSON e caricare il relativo storico.
 4. Accedere da un secondo browser: eventi e storici devono essere presenti.
 5. Verificare che `config.local.php`, `app/` e `var/dashboard.sqlite3` non siano accessibili dal web.
-6. Eseguire una volta il comando di raccolta, poi controllare le esecuzioni cron e i dati dopo due mezzanotti.
+6. Eseguire una volta il comando di raccolta, poi controllare le esecuzioni cron e i dati dopo due letture consecutive delle 04:00.
 
 Conservare backup completi del database. Il solo file JSON esportato dalla dashboard contiene eventi e storici, non tutte le rilevazioni giornaliere. Il cron e le scritture vanno sospesi durante una copia diretta del database.
 
 Queste modifiche sono state preparate nel repository. Nessun hosting viene creato o pubblicato automaticamente.
+
+## Aggiornamento dal precedente calcolo a mezzanotte
+
+Caricare i file aggiornati mantenendo `config.local.php` e la cartella archivio esistenti. La nuova tabella delle rilevazioni alle 04:00 viene creata automaticamente. Le letture precedenti a mezzanotte non vengono eliminate ma non possono sostituire quelle delle 04:00. Il cron ogni 5 minuti resta lo stesso; non occorre ricreare eventi o storici. Dopo l’aggiornamento attendere due rilevazioni consecutive delle 04:00 oppure importare un conteggio giornaliero effettivo.

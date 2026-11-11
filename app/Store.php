@@ -22,7 +22,7 @@ final class Store
         $this->db->exec('CREATE TABLE IF NOT EXISTS configuration (id INTEGER PRIMARY KEY, revision INTEGER NOT NULL, events TEXT NOT NULL)');
         $this->db->exec('CREATE TABLE IF NOT EXISTS samples (id INTEGER PRIMARY KEY, event_id TEXT NOT NULL, source TEXT NOT NULL, observed INTEGER NOT NULL, count INTEGER NOT NULL)');
         $this->db->exec('CREATE INDEX IF NOT EXISTS sample_lookup ON samples(event_id, source, observed)');
-        $this->db->exec('CREATE TABLE IF NOT EXISTS boundaries (event_id TEXT NOT NULL, source TEXT NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL, observed INTEGER NOT NULL, PRIMARY KEY(event_id, source, day))');
+        $this->db->exec('CREATE TABLE IF NOT EXISTS boundaries_04 (event_id TEXT NOT NULL, source TEXT NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL, observed INTEGER NOT NULL, PRIMARY KEY(event_id, source, day))');
         $this->db->exec('CREATE TABLE IF NOT EXISTS daily_counts (event_id TEXT NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(event_id, day))');
         $this->db->exec('CREATE TABLE IF NOT EXISTS statuses (event_id TEXT PRIMARY KEY, source TEXT NOT NULL, error TEXT NOT NULL)');
         $this->db->exec('CREATE TABLE IF NOT EXISTS login_attempts (identity TEXT PRIMARY KEY, since INTEGER NOT NULL, count INTEGER NOT NULL)');
@@ -67,9 +67,9 @@ final class Store
         $this->db->beginTransaction();
         try {
             $this->db->prepare('INSERT INTO samples(event_id,source,observed,count) VALUES(?,?,?,?)')->execute([$event['id'], $source, $time, $count]);
-            // Only observations in the first five minutes qualify as a midnight boundary.
-            if ($local->format('H') === '00' && (int)$local->format('i') < 5) {
-                $this->db->prepare('INSERT OR IGNORE INTO boundaries VALUES(?,?,?,?,?)')->execute([$event['id'], $source, $local->format('Y-m-d'), $count, $time]);
+            // Keep 04:00 observations separate from legacy midnight samples.
+            if ($local->format('H') === '04' && (int)$local->format('i') < 5) {
+                $this->db->prepare('INSERT OR IGNORE INTO boundaries_04 VALUES(?,?,?,?,?)')->execute([$event['id'], $source, $local->format('Y-m-d'), $count, $time]);
             }
             $this->db->prepare('DELETE FROM statuses WHERE event_id=?')->execute([$event['id']]);
             $this->db->commit();
@@ -88,7 +88,7 @@ final class Store
             if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) { if ($lock) fclose($lock); continue; }
             try {
                 $last = $this->one('SELECT observed FROM samples WHERE event_id=? AND source=? ORDER BY observed DESC LIMIT 1', [$event['id'], $source]);
-                $boundary = $local->format('H') === '00' && (int)$local->format('i') < 5 && !$this->one('SELECT day FROM boundaries WHERE event_id=? AND source=? AND day=?', [$event['id'], $source, $local->format('Y-m-d')]);
+                $boundary = $local->format('H') === '04' && (int)$local->format('i') < 5 && !$this->one('SELECT day FROM boundaries_04 WHERE event_id=? AND source=? AND day=?', [$event['id'], $source, $local->format('Y-m-d')]);
                 if (!$force && !$boundary && $last && $now - (int)$last['observed'] < 21600) continue;
                 try {
                     $count = History::count($fetch($event['url']));
@@ -122,12 +122,12 @@ final class Store
         $manual = $this->one('SELECT count FROM daily_counts WHERE event_id=? AND day=?', [$event['id'], $day]);
         if ($manual) return ['date' => $day, 'count' => (int)$manual['count'], 'kind' => 'imported', 'note' => 'Conteggio giornaliero importato.'];
         $source = hash('sha256', $event['url']);
-        $start = $this->one('SELECT count,observed FROM boundaries WHERE event_id=? AND source=? AND day=?', [$event['id'], $source, $day]);
-        $end = $this->one('SELECT count,observed FROM boundaries WHERE event_id=? AND source=? AND day=?', [$event['id'], $source, $date]);
-        if (!$start || !$end) return ['date' => $day, 'count' => null, 'kind' => 'unavailable', 'note' => 'Servono i conteggi giornalieri o due rilevazioni consecutive a mezzanotte.'];
+        $start = $this->one('SELECT count,observed FROM boundaries_04 WHERE event_id=? AND source=? AND day=?', [$event['id'], $source, $day]);
+        $end = $this->one('SELECT count,observed FROM boundaries_04 WHERE event_id=? AND source=? AND day=?', [$event['id'], $source, $date]);
+        if (!$start || !$end) return ['date' => $day, 'count' => null, 'kind' => 'unavailable', 'note' => 'Servono i conteggi giornalieri o due rilevazioni alle 04:00 di giorni consecutivi (ora italiana).'];
         $delta = (int)$end['count'] - (int)$start['count'];
         if ($delta < 0) return ['date' => $day, 'count' => null, 'kind' => 'unavailable', 'note' => 'Il totale è diminuito: possibili rettifiche o cancellazioni.'];
-        return ['date' => $day, 'count' => $delta, 'kind' => 'estimated', 'note' => 'Stima del saldo netto tra due letture entro 5 minuti dalla mezzanotte; può includere rettifiche e cancellazioni.'];
+        return ['date' => $day, 'count' => $delta, 'kind' => 'estimated', 'periodStart' => gmdate('c', (int)$start['observed']), 'periodEnd' => gmdate('c', (int)$end['observed']), 'note' => 'Stima del saldo netto dalle 04:00 del giorno indicato alle 04:00 del giorno successivo (ora italiana, tolleranza 5 minuti); può includere rettifiche e cancellazioni.'];
     }
 
     public function state(string $date): array

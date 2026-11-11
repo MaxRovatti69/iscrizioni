@@ -7,7 +7,7 @@ Dashboard privata multi-evento, con una riga per evento: totale Endu, iscrizioni
 - PHP **8.2 o superiore**, estensioni **curl** e **pdo_sqlite**, sessioni abilitate.
 - HTTPS sull’hosting e una cartella persistente scrivibile fuori dalla directory pubblica.
 - Accesso HTTPS a `egs-eventi.s3.eu-west-1.amazonaws.com`.
-- Un cron PHP ogni 5 minuti per raccogliere i dati anche a browser chiuso e a mezzanotte.
+- Un cron PHP ogni 5 minuti per raccogliere i dati anche a browser chiuso e alle 04:00 italiane.
 
 Le istruzioni per hosting e credenziali sono in [DEPLOY.md](DEPLOY.md). Non serve Render se l’hosting esistente supporta questi requisiti.
 
@@ -48,10 +48,10 @@ La data visualizzata è selezionabile; “ieri” è sempre il giorno precedente
 Il JSON `entrants.json` espone un totale, non le date delle singole iscrizioni. La dashboard non può ricostruire retroattivamente il numero esatto di iscrizioni di ieri da quel solo totale.
 
 - **Importato**: caricare un CSV `data;iscrizioni` in **Importa iscrizioni giornaliere CSV**. Ogni riga deve contenere le nuove iscrizioni di quel giorno, non il cumulato. Questi dati hanno precedenza sulle stime e vengono associati solo all’evento selezionato. Date già importate vengono aggiornate.
-- **Stima**: differenza tra le rilevazioni entro i primi 5 minuti della mezzanotte all’inizio e alla fine del giorno. È un saldo netto e può includere cancellazioni/rettifiche. Richiede il cron e due mezzanotti consecutive raccolte correttamente.
+- **Stima**: differenza tra il totale delle **04:00 del giorno indicato** e quello delle **04:00 del giorno successivo**, con tolleranza di 5 minuti. È un saldo netto e può includere cancellazioni/rettifiche. Richiede il cron e due letture consecutive delle 04:00 raccolte correttamente.
 - **Non disponibile**: mancano i dati necessari o il totale è diminuito; non viene mostrato uno zero inventato.
 
-Le rilevazioni a intervalli di 6 ore non vengono confuse con il giorno solare. Un dato storico non disponibile rimane tale finché non viene importato un conteggio effettivo. Cambiando il link di un evento, le rilevazioni del vecchio link non vengono riutilizzate come se appartenessero alla nuova fonte.
+La stima non rappresenta il giorno solare 00:00–24:00: ad esempio il saldo mostrato per il 10 novembre usa le letture del 10 novembre alle 04:00 e dell’11 novembre alle 04:00. Le date sono sempre italiane; nei cambi di ora legale/solare l’intervallo effettivo può durare 23 o 25 ore. Le letture della precedente versione a mezzanotte vengono conservate ma non riutilizzate per il nuovo calcolo. Non occorre cancellare o ricreare il database. Un dato storico non disponibile rimane tale finché non viene importato un conteggio effettivo. Cambiando il link di un evento, le rilevazioni del vecchio link non vengono riutilizzate come se appartenessero alla nuova fonte.
 
 La tabella mantiene tutti i dati sulla stessa riga; su schermi stretti si scorre orizzontalmente. I totali storici selezionabili per data esistono solo per i giorni effettivamente rilevati, non vengono stimati all’indietro.
 
@@ -61,7 +61,7 @@ La tabella mantiene tutti i dati sulla stessa riga; su schermi stretti si scorre
 php bin/collect.php
 ```
 
-Il comando legge solo gli eventi con JSON configurato, al massimo ogni 6 ore, più la lettura di mezzanotte. Configurarlo **ogni 5 minuti** nel cron dell’hosting: decide da solo quando occorre una richiesta Endu. `--force` consente una raccolta immediata per diagnosi. Il pulsante **Aggiorna Endu** resta disponibile. Se il cron non è configurato, le pagine aperte aggiornano ogni 6 ore ma non garantiscono il dato di ieri.
+Il comando legge solo gli eventi con JSON configurato, al massimo ogni 6 ore, più la lettura delle 04:00 italiane. Configurarlo **ogni 5 minuti** nel cron dell’hosting: decide da solo quando occorre una richiesta Endu. `--force` consente una raccolta immediata per diagnosi. Il pulsante **Aggiorna Endu** resta disponibile. Se il cron non è configurato, le pagine aperte aggiornano ogni 6 ore ma non garantiscono il dato di ieri.
 
 ## Migrazione dalla vecchia versione
 
@@ -79,6 +79,6 @@ Node.js, Python, Flask, Gunicorn e i relativi file sono stati rimossi dal proget
 php tests/run.php
 ```
 
-La suite verifica confronti, validazione CSV, persistenza, isolamento eventi, mezzanotte, stime di ieri, dati effettivi importati e intervallo di raccolta. Non richiede librerie esterne.
+La suite verifica confronti, validazione CSV, persistenza, isolamento eventi, letture delle 04:00, cambio ora italiano, stime di ieri, dati effettivi importati e intervallo di raccolta. Non richiede librerie esterne.
 
 Sono inclusi anche `tests/http.php` e `tests/browser.php` per prove su **un server locale con database di test e credenziali di prova**, non sul servizio con dati reali. Le prove browser usano Chromium e un client Chrome DevTools scritto in PHP; non usano Node.js. Dettagli in [tests/README.md](tests/README.md).
