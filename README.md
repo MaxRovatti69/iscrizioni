@@ -25,7 +25,7 @@ In Codespaces aprire la porta 5173 dalla scheda **Ports / Porte**. Per l’hosti
 
 ## Eventi e storici
 
-La dashboard conserva eventi, storici e rilevazioni in SQLite sul server. Ogni evento può essere creato senza JSON: la riga mostra che le iscrizioni non sono ancora aperte. Quando il link è disponibile, incollarlo nella configurazione dell’evento. Sono ammessi soltanto i percorsi standard `entrants.json` sul bucket Endu; i redirect non vengono seguiti.
+La dashboard conserva eventi, storici e rilevazioni in SQLite sul server. Ogni evento può essere creato senza JSON: la riga mostra che le iscrizioni non sono ancora aperte. Quando il link è disponibile, incollarlo nella configurazione dell’evento. Sono ammessi soltanto i percorsi standard `entrants.json` e `entrants-by-fee-group.json` sul bucket Endu; i redirect non vengono seguiti.
 
 Gli storici si importano come CSV UTF-8:
 
@@ -82,3 +82,25 @@ php tests/run.php
 La suite verifica confronti, validazione CSV, persistenza, isolamento eventi, letture delle 04:00, cambio ora italiano, stime di ieri, dati effettivi importati e intervallo di raccolta. Non richiede librerie esterne.
 
 Sono inclusi anche `tests/http.php` e `tests/browser.php` per prove su **un server locale con database di test e credenziali di prova**, non sul servizio con dati reali. Le prove browser usano Chromium e un client Chrome DevTools scritto in PHP; non usano Node.js. Dettagli in [tests/README.md](tests/README.md).
+
+## Dettaglio delle singole gare dal JSON per gruppi
+
+Ora sono supportati sia `entrants.json` (totale unico) sia **`entrants-by-fee-group.json`** (ID, nome e conteggio di ciascun gruppo).
+
+Per un evento già configurato:
+
+1. Selezionarlo in **Gestisci eventi** e premere **Usa JSON per gruppi**. Il link viene sostituito con `entrants-by-fee-group.json` e i dati aggiornati.
+2. La riga esistente continua a mostrare la somma di tutti i gruppi. Nel riquadro **Gare e gruppi di iscrizione** compaiono nomi, ID e conteggi.
+3. Selezionare i gruppi che appartengono a una gara, inserire un nome, poi premere **Crea riga gara**. Esempio Pisa:
+   - Maratona: **46997, 46998, 46999**;
+   - Mezza Maratona: **47000, 47001, 47002**;
+   - Christmas Run: **47003**.
+4. Ripetere per le altre gare. Le nuove righe hanno uno storico indipendente, da importare per la sola gara corrispondente: non ereditano il CSV del totale aggregato.
+
+Non è necessario conoscere gli ID a memoria: sono visibili accanto ai nomi nel selettore. Ogni riga gara somma esattamente i gruppi selezionati; un ID non più presente causa un dato non disponibile, non uno zero inventato. Non si deducono le gare dal testo del nome.
+
+Le righe delle gare sono dettagli del totale dell’evento: **non sommare nuovamente il totale aggregato e le sue righe di dettaglio**. Lo stesso file JSON viene richiesto una sola volta per ogni raccolta anche quando alimenta più righe. Eventi che usano ancora il vecchio JSON restano compatibili e non vengono modificati automaticamente.
+
+Anche il saldo 04:00–04:00 è separato per gara. Cambiare URL o gruppi non riutilizza rilevazioni di un insieme di iscrizioni diverso: i nuovi saldi richiedono due letture consecutive. Gli storici e i conteggi giornalieri già importati sulle altre righe rimangono associati ai rispettivi eventi. I vecchi totali e le loro rilevazioni non vengono eliminati.
+
+Verifica aggiuntiva: `php tests/groups.php`. Il flusso browser è coperto da `tests/groups-browser.php` su una fixture locale con accesso al JSON pubblico di Pisa.

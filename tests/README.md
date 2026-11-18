@@ -41,3 +41,15 @@ In un container che non permette la sandbox Chromium potrebbe essere necessario 
 Il test browser usa il 4 novembre 2026 come riferimento fisso per il CSV Pisa 2025 e calcola dinamicamente oggi/ieri per i conteggi giornalieri. Prima di una nuova esecuzione usare un database e un profilo Chromium nuovi.
 
 Al termine fermare i due processi e rimuovere solo la fixture di prova e il profilo Chromium creati per il test.
+
+## Gruppi di quote e righe delle gare
+
+`php tests/groups.php` verifica i totali per gruppo, l’isolamento degli storici e dei saldi giornalieri, la compatibilità delle vecchie fonti e la singola richiesta per URL condiviso.
+
+Dopo i test HTTP e browser standard su una fixture locale nuova, eseguire:
+
+```
+php tests/groups-browser.php /tmp/iscrizioni-browser/credentials.json
+```
+
+Il test passa Pisa al JSON per gruppi, seleziona gli ID della Maratona e crea una riga di gara. Usa il JSON Endu reale e verifica che il totale corrisponda ai gruppi scelti, senza copiare storico o dati giornalieri dall’evento complessivo. Eseguirlo su una configurazione di prova che non abbia ancora effettuato il passaggio ai gruppi.

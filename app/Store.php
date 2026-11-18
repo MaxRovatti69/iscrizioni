@@ -25,6 +25,7 @@ final class Store
         $this->db->exec('CREATE TABLE IF NOT EXISTS boundaries_04 (event_id TEXT NOT NULL, source TEXT NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL, observed INTEGER NOT NULL, PRIMARY KEY(event_id, source, day))');
         $this->db->exec('CREATE TABLE IF NOT EXISTS daily_counts (event_id TEXT NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(event_id, day))');
         $this->db->exec('CREATE TABLE IF NOT EXISTS statuses (event_id TEXT PRIMARY KEY, source TEXT NOT NULL, error TEXT NOT NULL)');
+        $this->db->exec('CREATE TABLE IF NOT EXISTS fee_groups (url TEXT PRIMARY KEY, observed INTEGER NOT NULL, groups_json TEXT NOT NULL)');
         $this->db->exec('CREATE TABLE IF NOT EXISTS login_attempts (identity TEXT PRIMARY KEY, since INTEGER NOT NULL, count INTEGER NOT NULL)');
         $seed = [['id' => 'pisa', 'name' => 'Maratona di Pisa', 'url' => Endu::PISA, 'history' => null]];
         $this->db->prepare('INSERT OR IGNORE INTO configuration VALUES(1,0,?)')->execute([json_encode($seed, JSON_THROW_ON_ERROR)]);
@@ -45,6 +46,7 @@ final class Store
             $ids[$event['id']] = true;
             if (!is_string($event['name'] ?? null) || !trim($event['name']) || strlen($event['name']) > 300 || !is_string($event['url'] ?? null)) throw new InvalidArgumentException('Nome o link evento non valido.');
             if ($event['url'] !== '') Endu::validate($event['url']);
+            Endu::selection($event);
             if (isset($event['history'])) {
                 if (!is_array($event['history']) || !is_string($event['history']['text'] ?? null) || !is_string($event['history']['mode'] ?? null)) throw new InvalidArgumentException('Storico non valido.');
                 History::parse($event['history']['text'], $event['history']['mode']);
@@ -62,7 +64,7 @@ final class Store
 
     public function record(array $event, int $count, int $time): void
     {
-        $source = hash('sha256', $event['url']);
+        $source = Endu::source($event);
         $local = (new DateTimeImmutable('@' . $time))->setTimezone(new DateTimeZone('Europe/Rome'));
         $this->db->beginTransaction();
         try {
@@ -76,14 +78,29 @@ final class Store
         } catch (\Throwable $error) { $this->db->rollBack(); throw $error; }
     }
 
-    public function collect(bool $force = false, ?int $now = null, ?callable $fetch = null): array
+    public function collect(bool $force = false, ?int $now = null, ?callable $fetch = null, ?callable $payloadFetcher = null): array
     {
-        $now ??= time(); $fetch ??= Endu::fetch(...);
+        $now ??= time();
+        $payloadFetcher ??= Endu::payload(...);
+        $payloads = []; $errors = [];
+        $fetch ??= function (string $url, array $ids) use (&$payloads, &$errors, $now, $payloadFetcher): int {
+            if (isset($errors[$url])) throw $errors[$url];
+            if (!array_key_exists($url, $payloads)) {
+                try {
+                    $payloads[$url] = $payloadFetcher($url);
+                    if (str_ends_with($url, '/entrants-by-fee-group.json')) {
+                        $groups = Endu::groups($payloads[$url]);
+                        $this->db->prepare('INSERT OR REPLACE INTO fee_groups VALUES(?,?,?)')->execute([$url, $now, json_encode($groups, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)]);
+                    }
+                } catch (\Throwable $error) { $errors[$url] = $error; throw $error; }
+            }
+            return Endu::count($payloads[$url], $ids);
+        };
         $local = (new DateTimeImmutable('@' . $now))->setTimezone(new DateTimeZone('Europe/Rome'));
         $results = [];
         foreach ($this->configuration()['events'] as $event) {
             if (!$event['url']) continue;
-            $source = hash('sha256', $event['url']);
+            $source = Endu::source($event);
             $lock = fopen($this->directory . '/collect-' . hash('sha256', $event['id']) . '.lock', 'c');
             if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) { if ($lock) fclose($lock); continue; }
             try {
@@ -91,7 +108,7 @@ final class Store
                 $boundary = $local->format('H') === '04' && (int)$local->format('i') < 5 && !$this->one('SELECT day FROM boundaries_04 WHERE event_id=? AND source=? AND day=?', [$event['id'], $source, $local->format('Y-m-d')]);
                 if (!$force && !$boundary && $last && $now - (int)$last['observed'] < 21600) continue;
                 try {
-                    $count = History::count($fetch($event['url']));
+                    $count = History::count($fetch($event['url'], Endu::selection($event)));
                     $this->record($event, $count, $now); $results[$event['id']] = 'ok';
                 } catch (\Throwable $error) {
                     $this->db->prepare('INSERT OR REPLACE INTO statuses VALUES(?,?,?)')->execute([$event['id'], $source, 'Lettura Endu non riuscita. Riprova più tardi.']);
@@ -121,7 +138,7 @@ final class Store
         $day = (new DateTimeImmutable($date, new DateTimeZone('Europe/Rome')))->modify('-1 day')->format('Y-m-d');
         $manual = $this->one('SELECT count FROM daily_counts WHERE event_id=? AND day=?', [$event['id'], $day]);
         if ($manual) return ['date' => $day, 'count' => (int)$manual['count'], 'kind' => 'imported', 'note' => 'Conteggio giornaliero importato.'];
-        $source = hash('sha256', $event['url']);
+        $source = Endu::source($event);
         $start = $this->one('SELECT count,observed FROM boundaries_04 WHERE event_id=? AND source=? AND day=?', [$event['id'], $source, $day]);
         $end = $this->one('SELECT count,observed FROM boundaries_04 WHERE event_id=? AND source=? AND day=?', [$event['id'], $source, $date]);
         if (!$start || !$end) return ['date' => $day, 'count' => null, 'kind' => 'unavailable', 'note' => 'Servono i conteggi giornalieri o due rilevazioni alle 04:00 di giorni consecutivi (ora italiana).'];
@@ -139,7 +156,7 @@ final class Store
         $end = $start->modify('+1 day');
         $config = $this->configuration(); $stats = [];
         foreach ($config['events'] as $event) {
-            $source = hash('sha256', $event['url']);
+            $source = Endu::source($event);
             $sample = $this->one('SELECT count,observed FROM samples WHERE event_id=? AND source=? AND observed>=? AND observed<? ORDER BY observed DESC,id DESC LIMIT 1', [$event['id'], $source, $start->getTimestamp(), $end->getTimestamp()]);
             $stale = false;
             if (!$sample && $date === $today) {
@@ -159,7 +176,13 @@ final class Store
                 'error' => $status ? $status['error'] : null, 'comparison' => $comparison, 'historyError' => $historyError,
                 'yesterday' => $this->yesterday($event, $date)];
         }
-        return $config + ['date' => $date, 'today' => $today, 'stats' => $stats];
+        $groups = [];
+        foreach (array_unique(array_column($config['events'], 'url')) as $url) {
+            if (!str_ends_with($url, '/entrants-by-fee-group.json')) continue;
+            $cached = $this->one('SELECT observed,groups_json FROM fee_groups WHERE url=?', [$url]);
+            if ($cached) $groups[$url] = ['observedAt' => gmdate('c', (int)$cached['observed']), 'items' => json_decode($cached['groups_json'], true, 64, JSON_THROW_ON_ERROR)];
+        }
+        return $config + ['date' => $date, 'today' => $today, 'stats' => $stats, 'groups' => (object)$groups];
     }
 
     public function loginAllowed(string $identity, int $now): bool

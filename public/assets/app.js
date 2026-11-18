@@ -41,6 +41,8 @@ function App() {
   const [newName, setNewName] = useState('');
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
+  const [raceName, setRaceName] = useState('');
+  const [groupIds, setGroupIds] = useState([]);
   const [mode, setMode] = useState('weekly');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -48,6 +50,8 @@ function App() {
   const busy = useRef(false), requestId = useRef(0), stateRef = useRef(null), dateRef = useRef(date), lastLoad = useRef(0);
   dateRef.current = date;
   const event = state?.events.find(item => item.id === selected) || state?.events[0];
+  const available = event ? state?.groups?.[event.url] : null;
+  const isGrouped = event?.url.endsWith('/entrants-by-fee-group.json');
   const apply = value => { stateRef.current = value; setState(value); setSelected(previous => value.events.some(item => item.id === previous) ? previous : value.events[0].id); };
   async function load(target = dateRef.current) {
     const id = ++requestId.current;
@@ -73,6 +77,7 @@ function App() {
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
   useEffect(() => { if (event) { setName(event.name); setUrl(event.url); setMode(event.history?.mode || 'weekly'); } }, [event?.id, event?.name, event?.url, event?.history?.mode]);
+  useEffect(() => { setGroupIds([]); setRaceName(''); }, [event?.id, event?.url]);
   async function saveEvents(events) {
     if (saving) return;
     setSaving(true);
@@ -92,6 +97,19 @@ function App() {
     e.preventDefault();
     try { await updateEvent({...event, name: name.trim(), url: url.trim()}); await refresh(false); }
     catch (_) { /* Error already displayed. */ }
+  }
+  async function useGroups() {
+    try { await updateEvent({...event, url: event.url.replace(/\/entrants\.json$/, '/entrants-by-fee-group.json')}); await refresh(true); }
+    catch (_) { /* Error already displayed. */ }
+  }
+  async function createRace(e) {
+    e.preventDefault();
+    if (!groupIds.length) { setMessage('Seleziona almeno un gruppo per creare la gara.'); return; }
+    try {
+      const id = crypto.randomUUID();
+      await saveEvents([...stateRef.current.events, {id, name: raceName.trim(), url: event.url, groupIds: [...groupIds].sort((a,b) => a-b), history: null}]);
+      setSelected(id); setRaceName(''); setGroupIds([]); await refresh(true);
+    } catch (_) { /* Error already displayed. */ }
   }
   async function importCSV(input, daily = false) {
     const file = input.files[0], target = event;
@@ -136,8 +154,17 @@ function App() {
         h('div', {className: 'panel-heading'}, h('h2', null, 'Gestisci eventi')),
         h('form', {className: 'filters', onSubmit: create}, h('input', {value: newName, onChange: e => setNewName(e.target.value), placeholder: 'Nome nuovo evento, es. Golfo dell’Isola 2027', 'aria-label': 'Nome nuovo evento', required: true, maxLength: 150}), h('button', {className: 'button', disabled: saving}, '+ Crea evento')),
         h('div', {className: 'filters'}, h('label', {htmlFor: 'event-select'}, 'Evento da configurare'), h('select', {id: 'event-select', value: event.id, onChange: e => setSelected(e.target.value)}, ...state.events.map(item => h('option', {key: item.id, value: item.id}, item.name)))),
-        h('form', {className: 'filters', onSubmit: configure}, h('input', {value: name, onChange: e => setName(e.target.value), 'aria-label': 'Nome evento', required: true, maxLength: 150}), h('input', {type: 'url', value: url, onChange: e => setUrl(e.target.value), placeholder: 'Link entrants.json (facoltativo)', 'aria-label': 'Link JSON Endu'}), h('button', {className: 'secondary', disabled: saving}, 'Salva evento')),
+        h('form', {className: 'filters', onSubmit: configure}, h('input', {value: name, onChange: e => setName(e.target.value), 'aria-label': 'Nome evento', required: true, maxLength: 150}), h('input', {type: 'url', value: url, onChange: e => setUrl(e.target.value), placeholder: 'Link entrants-by-fee-group.json o entrants.json', 'aria-label': 'Link JSON Endu'}), h('button', {className: 'secondary', disabled: saving}, 'Salva evento')),
         h('p', {className: 'endu-status'}, 'Puoi creare l’evento e caricare lo storico prima dell’apertura iscrizioni. Eventi e storici sono conservati sul server.'),
+        event.url.endsWith('/entrants.json') && h('div', {className: 'filters'}, h('button', {className: 'secondary', disabled: saving || loading, onClick: useGroups}, 'Usa JSON per gruppi'), h('span', {className: 'muted'}, 'Abilita il dettaglio delle singole gare.')),
+        isGrouped && h('section', {className: 'race-settings', 'aria-label': 'Dettaglio gare per gruppi'},
+          h('div', {className: 'panel-heading'}, h('h2', null, 'Gare e gruppi di iscrizione')),
+          h('p', {className: 'endu-status'}, event.groupIds?.length ? `Questa riga somma i gruppi ID: ${event.groupIds.join(', ')}.` : 'Questa riga mostra il totale di tutti i gruppi. Le righe delle singole gare sono dettagli del totale, non iscrizioni aggiuntive.'),
+          available ? h('form', {onSubmit: createRace},
+            h('p', {className: 'endu-status'}, `Gruppi disponibili, letti il ${new Date(available.observedAt).toLocaleString('it-IT', {timeZone: 'Europe/Rome'})}. Seleziona quelli di una gara, assegna un nome e crea la sua riga.`),
+            h('fieldset', {className: 'group-choices', disabled: saving}, h('legend', null, 'Gruppi da includere nella nuova gara'), ...available.items.map(group => h('label', {key: group.id}, h('input', {type: 'checkbox', checked: groupIds.includes(group.id), onChange: e => setGroupIds(previous => e.target.checked ? [...previous, group.id] : previous.filter(id => id !== group.id))}), h('span', null, group.name, h('small', null, `ID ${group.id}`)), h('b', null, format(group.count))))),
+            h('div', {className: 'filters'}, h('input', {value: raceName, onChange: e => setRaceName(e.target.value), placeholder: 'Nome gara, es. Pisa · Mezza Maratona', 'aria-label': 'Nome nuova gara', required: true, maxLength: 150}), h('span', {className: 'muted'}, `${format(available.items.filter(group => groupIds.includes(group.id)).reduce((sum, group) => sum + group.count, 0))} iscritti nei gruppi selezionati`), h('button', {className: 'button', disabled: saving || loading || !groupIds.length}, 'Crea riga gara')))
+            : h('p', {className: 'endu-status'}, 'Premi Aggiorna Endu per caricare i gruppi.')),
         h('div', {className: 'panel-heading'}, h('h2', null, `Storico · ${event.name}`)),
         h('div', {className: 'filters'}, h('select', {value: mode, onChange: e => setMode(e.target.value), 'aria-label': 'Tipo di storico'}, h('option', {value: 'weekly'}, 'Iscrizioni della settimana più vicina'), h('option', {value: 'daily'}, 'Iscrizioni del giorno'), h('option', {value: 'cumulative'}, 'Totale cumulato')),
           h('label', {className: 'button'}, 'Importa storico CSV', h('input', {hidden: true, type: 'file', accept: '.csv', disabled: saving, onChange: e => importCSV(e.target)})),

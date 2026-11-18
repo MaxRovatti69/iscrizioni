@@ -1,0 +1,33 @@
+<?php
+declare(strict_types=1);
+require __DIR__ . '/Cdp.php';
+$credentials = json_decode(file_get_contents($argv[1] ?? '/tmp/iscrizioni-groups-http/credentials.json'), true, 16, JSON_THROW_ON_ERROR);
+$curl = curl_init('http://127.0.0.1:9222/json/new?http://127.0.0.1:5173/index.php');
+curl_setopt_array($curl, [CURLOPT_CUSTOMREQUEST => 'PUT', CURLOPT_RETURNTRANSFER => true]);
+$page = json_decode(curl_exec($curl), true, 32, JSON_THROW_ON_ERROR); curl_close($curl);
+$browser = new Cdp($page['webSocketDebuggerUrl']);
+$browser->call('Runtime.enable'); $browser->call('Page.enable');
+$browser->call('Emulation.setDeviceMetricsOverride',['width'=>1680,'height'=>1050,'deviceScaleFactor'=>1,'mobile'=>false]);
+$browser->wait('Boolean(document.querySelector("input[name=password]") || document.querySelector("tbody"))');
+if ($browser->evaluate('Boolean(document.querySelector("input[name=password]"))')) {
+    $browser->evaluate('document.querySelector("input[name=username]").value=' . json_encode($credentials['username']) . ';document.querySelector("input[name=password]").value=' . json_encode($credentials['password']) . ';document.querySelector("form").requestSubmit();true');
+}
+$browser->wait('document.querySelector("tr[data-event-id=pisa] button") !== null');
+$browser->evaluate('document.querySelector("tr[data-event-id=pisa] button").click();true');
+$browser->wait('Array.from(document.querySelectorAll("button")).some(b=>b.innerText === "Usa JSON per gruppi" && !b.disabled)');
+$browser->evaluate('Array.from(document.querySelectorAll("button")).find(b=>b.innerText === "Usa JSON per gruppi").click();true');
+$browser->wait('document.querySelectorAll(".group-choices input[type=checkbox]").length >= 7');
+echo "PASS: Passaggio dal totale Endu al dettaglio per gruppi dalla dashboard.\n";
+$browser->evaluate('(()=>{for(const id of [46997,46998,46999]){const label=Array.from(document.querySelectorAll(".group-choices label")).find(l=>l.querySelector("small").textContent===`ID ${id}`);if(!label)throw new Error("Gruppo atteso assente");label.querySelector("input").click();}return true;})()');
+$browser->evaluate('(()=>{const input=document.querySelector("input[aria-label=\"Nome nuova gara\"]");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"Pisa · Maratona (test gruppi)");input.dispatchEvent(new Event("input",{bubbles:true}));return true;})()');
+$browser->evaluate('document.querySelector("input[aria-label=\"Nome nuova gara\"]").form.requestSubmit();true');
+$browser->wait('Array.from(document.querySelectorAll("tbody tr")).some(row=>row.innerText.includes("Pisa · Maratona (test gruppi)") && row.children[1].innerText.includes("iscritti"))');
+$result=$browser->evaluate('(async()=>{const s=await (await fetch("index.php?action=state")).json();const e=s.events.find(e=>e.name==="Pisa · Maratona (test gruppi)");return {count:s.stats[e.id].count,ids:e.groupIds,history:e.history,yesterday:s.stats[e.id].yesterday.count,expected:s.groups[e.url].items.filter(g=>[46997,46998,46999].includes(g.id)).reduce((sum,g)=>sum+g.count,0)};})()');
+if($result['ids']!==[46997,46998,46999] || $result['count']!==$result['expected'])throw new RuntimeException('Totale gara non corrispondente ai gruppi selezionati.');
+if($result['history']!==null || $result['yesterday']!==null)throw new RuntimeException('La nuova gara ha ereditato dati aggregati non pertinenti.');
+echo "PASS: Riga Maratona con somma dei tre gruppi scelti, senza storico o dati giornalieri aggregati ereditati.\n";
+$browser->call('Page.reload',['ignoreCache'=>true]);
+$browser->wait('Array.from(document.querySelectorAll("tbody tr")).some(row=>row.innerText.includes("Pisa · Maratona (test gruppi)"))');
+echo "PASS: Gara e selezione gruppi conservate dopo il ricaricamento.\n";
+if($browser->errors)throw new RuntimeException(json_encode($browser->errors));
+echo "PASS: Nessuna eccezione JavaScript durante la gestione dei gruppi.\n";
