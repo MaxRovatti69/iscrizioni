@@ -29,6 +29,18 @@ final class Endu
         return $normalized;
     }
 
+    public static function groupUrl(string $url): string
+    {
+        self::validate($url);
+        return preg_replace('~/entrants(?:-by-fee-group)?\.json$~', '/entrants-by-fee-group.json', $url);
+    }
+
+    public static function totalUrl(string $url): string
+    {
+        self::validate($url);
+        return preg_replace('~/entrants(?:-by-fee-group)?\.json$~', '/entrants.json', $url);
+    }
+
     public static function source(array $event): string
     {
         $ids = self::selection($event);

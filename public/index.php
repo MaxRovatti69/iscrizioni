@@ -29,7 +29,7 @@ try {
     $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
     $action = $_GET['action'] ?? '';
     $method = $_SERVER['REQUEST_METHOD'];
-    $jsonActions = ['state', 'save', 'refresh', 'daily', 'seed', 'export'];
+    $jsonActions = ['state', 'save', 'refresh', 'daily', 'seed', 'export', 'groups'];
     if (isset($_SESSION['authenticated']) && ($_SESSION['expires'] ?? 0) < time()) {
         unset($_SESSION['authenticated']);
     }
@@ -72,11 +72,15 @@ try {
         header('Content-Disposition: attachment; filename="iscrizioni-eventi.json"');
         dashboard_json($store->configuration());
     }
-    if ($method === 'POST' && in_array($action, ['save', 'refresh', 'daily'], true)) {
+    if ($method === 'POST' && in_array($action, ['save', 'refresh', 'daily', 'groups'], true)) {
         $body = file_get_contents('php://input', false, null, 0, 10_000_001);
         if (strlen($body) > 10_000_000) dashboard_json(['error' => 'Richiesta troppo grande.'], 413);
         $payload = json_decode($body, true, 64, JSON_THROW_ON_ERROR);
         if (!is_array($payload)) throw new InvalidArgumentException('Richiesta non valida.');
+        if ($action === 'groups') {
+            if (!is_string($payload['eventId'] ?? null)) throw new InvalidArgumentException('Evento non valido.');
+            dashboard_json($store->loadGroups($payload['eventId']));
+        }
         if ($action === 'save') {
             if (!is_array($payload['events'] ?? null) || !is_int($payload['revision'] ?? null)) throw new InvalidArgumentException('Configurazione non valida.');
             $store->save($payload['events'], $payload['revision']);

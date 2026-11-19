@@ -83,24 +83,23 @@ La suite verifica confronti, validazione CSV, persistenza, isolamento eventi, le
 
 Sono inclusi anche `tests/http.php` e `tests/browser.php` per prove su **un server locale con database di test e credenziali di prova**, non sul servizio con dati reali. Le prove browser usano Chromium e un client Chrome DevTools scritto in PHP; non usano Node.js. Dettagli in [tests/README.md](tests/README.md).
 
-## Dettaglio delle singole gare dal JSON per gruppi
+## Evento principale e gare espandibili
 
-Ora sono supportati sia `entrants.json` (totale unico) sia **`entrants-by-fee-group.json`** (ID, nome e conteggio di ciascun gruppo).
+La tabella mostra una riga principale per ciascun evento, letta da **entrants.json**. Quando esistono gare collegate, la freccia a sinistra del nome apre o chiude le righe figlie, rientrate e su uno sfondo distinto. Le gare sono inizialmente chiuse al caricamento; il pulsante è utilizzabile anche da tastiera. Ogni gara legge solo i suoi gruppi da **entrants-by-fee-group.json**.
 
-Per un evento già configurato:
+1. Selezionare l’evento principale in **Gestisci eventi** e premere **Carica gare collegate**. Il totale principale continua a provenire da entrants.json.
+2. Scegliere i gruppi che compongono una gara, inserire un nome e premere **Crea riga gara**. La gara viene associata automaticamente al principale e il dettaglio si apre.
+3. Ripetere per le altre gare. Esempio Pisa: Maratona **46997, 46998, 46999**; Mezza Maratona **47000, 47001, 47002**; Christmas Run **47003**.
+4. Ogni gara conserva storico e rilevazioni indipendenti. Importare un CSV riferito alla sola gara selezionata. Il dato di ieri usa le sue letture delle 04:00.
 
-1. Selezionarlo in **Gestisci eventi** e premere **Usa JSON per gruppi**. Il link viene sostituito con `entrants-by-fee-group.json` e i dati aggiornati.
-2. La riga esistente continua a mostrare la somma di tutti i gruppi. Nel riquadro **Gare e gruppi di iscrizione** compaiono nomi, ID e conteggi.
-3. Selezionare i gruppi che appartengono a una gara, inserire un nome, poi premere **Crea riga gara**. Esempio Pisa:
-   - Maratona: **46997, 46998, 46999**;
-   - Mezza Maratona: **47000, 47001, 47002**;
-   - Christmas Run: **47003**.
-4. Ripetere per le altre gare. Le nuove righe hanno uno storico indipendente, da importare per la sola gara corrispondente: non ereditano il CSV del totale aggregato.
+Il totale principale e i dettagli **non devono essere sommati di nuovo insieme**. La gerarchia è visiva e di configurazione: i conteggi restano separati e la fonte del principale non viene sostituita con la somma dei dettagli.
 
-Non è necessario conoscere gli ID a memoria: sono visibili accanto ai nomi nel selettore. Ogni riga gara somma esattamente i gruppi selezionati; un ID non più presente causa un dato non disponibile, non uno zero inventato. Non si deducono le gare dal testo del nome.
+### Gare già presenti
 
-Le righe delle gare sono dettagli del totale dell’evento: **non sommare nuovamente il totale aggregato e le sue righe di dettaglio**. Lo stesso file JSON viene richiesto una sola volta per ogni raccolta anche quando alimenta più righe. Eventi che usano ancora il vecchio JSON restano compatibili e non vengono modificati automaticamente.
+Le righe della versione precedente vengono collegate automaticamente se condividono la stessa fonte Endu con un solo principale possibile. Restano invariati ID, gruppi scelti, storici e rilevazioni delle gare. I principali precedentemente impostati sul JSON per gruppi tornano a leggere entrants.json; i campioni della fonte precedente sono conservati, non riscritti come dati del nuovo JSON. Per il nuovo totale va eseguita una lettura Endu.
 
-Anche il saldo 04:00–04:00 è separato per gara. Cambiare URL o gruppi non riutilizza rilevazioni di un insieme di iscrizioni diverso: i nuovi saldi richiedono due letture consecutive. Gli storici e i conteggi giornalieri già importati sulle altre righe rimangono associati ai rispettivi eventi. I vecchi totali e le loro rilevazioni non vengono eliminati.
+Se la fonte identifica più principali possibili, la gara resta visibile come riga indipendente. Selezionarla, scegliere **Evento principale della gara** e salvare. Si può anche mantenere esplicitamente una riga indipendente. Sono consentiti solo legami tra principale e gara della stessa fonte Endu: non ci sono livelli annidati o collegamenti circolari.
 
-Verifica aggiuntiva: `php tests/groups.php`. Il flusso browser è coperto da `tests/groups-browser.php` su una fixture locale con accesso al JSON pubblico di Pisa.
+La relazione `parentId` viene mantenuta nel salvataggio e nel backup JSON. Non è necessario eliminare o ricreare l’archivio, gli eventi o gli storici. Il cron rimane invariato.
+
+Test aggiuntivi: `php tests/groups.php` e `php tests/hierarchy.php`. La tendina e la creazione di gare sono verificate nel browser con `tests/groups-browser.php` su un server locale di prova.

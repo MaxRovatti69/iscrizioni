@@ -71,10 +71,10 @@ Queste modifiche sono state preparate nel repository. Nessun hosting viene creat
 
 Caricare i file aggiornati mantenendo `config.local.php` e la cartella archivio esistenti. La nuova tabella delle rilevazioni alle 04:00 viene creata automaticamente. Le letture precedenti a mezzanotte non vengono eliminate ma non possono sostituire quelle delle 04:00. Il cron ogni 5 minuti resta lo stesso; non occorre ricreare eventi o storici. Dopo l’aggiornamento attendere due rilevazioni consecutive delle 04:00 oppure importare un conteggio giornaliero effettivo.
 
-## Aggiornamento per il dettaglio gare
+## Aggiornamento per il dettaglio gare espandibile
 
-Caricare i file aggiornati conservando `config.local.php` e la cartella dell’archivio. La tabella dei gruppi viene creata automaticamente. Il cron PHP rimane invariato.
+Caricare i file aggiornati conservando `config.local.php` e la cartella dell’archivio. Le gare già presenti vengono raggruppate automaticamente quando il principale della stessa fonte è univoco. Per situazioni ambigue scegliere manualmente **Evento principale della gara** nella configurazione della riga. Nessun evento o storico viene eliminato.
 
-Nel sito selezionare l’evento, premere **Usa JSON per gruppi**, scegliere i gruppi di una gara e **Crea riga gara**. È possibile anche incollare direttamente un URL `entrants-by-fee-group.json` e salvare l’evento. Caricare uno storico specifico per ciascuna nuova gara; un CSV che comprende Maratona e Mezza non può essere usato come storico della sola Maratona.
+Il principale legge `entrants.json`, le gare figlie `entrants-by-fee-group.json`. Se il principale usava in precedenza il JSON per gruppi, premere **Aggiorna Endu** dopo l’aggiornamento per rileggere il totale dalla fonte corretta. Le rilevazioni delle gare non cambiano identità; i campioni della precedente fonte aggregata restano conservati nell’archivio.
 
-Non è necessario cancellare o ricreare il database. Le righe esistenti continuano a usare la propria configurazione finché non vengono modificate. Le nuove gare iniziano a raccogliere rilevazioni dal momento della loro creazione.
+Per aggiungere nuove gare selezionare il principale, premere **Carica gare collegate**, scegliere i gruppi e **Crea riga gara**. Nella tabella aprire o chiudere il dettaglio usando la freccia a sinistra del nome del principale. Il cron PHP rimane invariato; non occorre ricreare il database.

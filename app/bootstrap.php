@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/History.php';
 require_once __DIR__ . '/Endu.php';
+require_once __DIR__ . '/EventTree.php';
 require_once __DIR__ . '/Store.php';
 
 function dashboard_config(): array

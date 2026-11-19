@@ -34,7 +34,7 @@ final class Store
     public function configuration(): array
     {
         $row = $this->db->query('SELECT revision,events FROM configuration WHERE id=1')->fetch(PDO::FETCH_ASSOC);
-        return ['revision' => (int)$row['revision'], 'events' => json_decode($row['events'], true, 64, JSON_THROW_ON_ERROR)];
+        return ['revision' => (int)$row['revision'], 'events' => EventTree::normalize(json_decode($row['events'], true, 64, JSON_THROW_ON_ERROR))];
     }
 
     public function save(array $events, int $revision): void
@@ -52,6 +52,7 @@ final class Store
                 History::parse($event['history']['text'], $event['history']['mode']);
             }
         }
+        $events = EventTree::normalize($events);
         $query = $this->db->prepare('UPDATE configuration SET events=?,revision=revision+1 WHERE id=1 AND revision=?');
         $query->execute([json_encode($events, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), $revision]);
         if ($query->rowCount() !== 1) throw new RuntimeException('La configurazione è stata modificata da un’altra pagina. Ricarica prima di salvare.', 409);
@@ -60,6 +61,20 @@ final class Store
     private function one(string $sql, array $params): array|false
     {
         $query = $this->db->prepare($sql); $query->execute($params); return $query->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function loadGroups(string $eventId): array
+    {
+        foreach ($this->configuration()['events'] as $event) {
+            if ($event['id'] !== $eventId) continue;
+            if (!$event['url']) throw new InvalidArgumentException('Configurare prima il link JSON dell’evento.');
+            $url = Endu::groupUrl($event['url']);
+            $groups = Endu::groups(Endu::payload($url));
+            $time = time();
+            $this->db->prepare('INSERT OR REPLACE INTO fee_groups VALUES(?,?,?)')->execute([$url, $time, json_encode($groups, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)]);
+            return ['url' => $url, 'observedAt' => gmdate('c', $time), 'items' => $groups];
+        }
+        throw new InvalidArgumentException('Evento non trovato.');
     }
 
     public function record(array $event, int $count, int $time): void
@@ -177,8 +192,9 @@ final class Store
                 'yesterday' => $this->yesterday($event, $date)];
         }
         $groups = [];
-        foreach (array_unique(array_column($config['events'], 'url')) as $url) {
-            if (!str_ends_with($url, '/entrants-by-fee-group.json')) continue;
+        $groupUrls = [];
+        foreach ($config['events'] as $event) if ($event['url']) $groupUrls[] = Endu::groupUrl($event['url']);
+        foreach (array_unique($groupUrls) as $url) {
             $cached = $this->one('SELECT observed,groups_json FROM fee_groups WHERE url=?', [$url]);
             if ($cached) $groups[$url] = ['observedAt' => gmdate('c', (int)$cached['observed']), 'items' => json_decode($cached['groups_json'], true, 64, JSON_THROW_ON_ERROR)];
         }

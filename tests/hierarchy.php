@@ -1,0 +1,48 @@
+<?php
+declare(strict_types=1);
+require dirname(__DIR__) . '/app/bootstrap.php';
+use Iscrizioni\Endu;
+use Iscrizioni\EventTree;
+use Iscrizioni\Store;
+$passed = 0;
+function treeCheck(bool $ok, string $name): void { global $passed; if (!$ok) throw new RuntimeException("FAIL: $name"); $passed++; echo "PASS: $name\n"; }
+function treeReject(callable $call, string $name): void { try {$call();}catch(InvalidArgumentException $error){treeCheck(true,$name);return;}throw new RuntimeException("FAIL: $name"); }
+$root=['id'=>'pisa','name'=>'Pisa','url'=>Endu::PISA_GROUPS,'history'=>['mode'=>'cumulative','text'=>"data;iscrizioni\n2025-11-02;4000"]];
+$child=['id'=>'mezza','name'=>'Mezza','url'=>Endu::PISA_GROUPS,'groupIds'=>[47000,47001,47002],'history'=>null];
+$normalized=EventTree::normalize([$root,$child]);
+treeCheck($normalized[0]['url']===Endu::PISA && $normalized[1]['parentId']==='pisa','Migra principale a entrants.json e collega le gare esistenti');
+treeCheck($normalized[0]['id']===$root['id'] && $normalized[0]['history']===$root['history'] && $normalized[1]['groupIds']===$child['groupIds'],'Preserva ID, storico e selezione gruppi');
+treeCheck(Endu::source($normalized[1])===Endu::source($child),'Il collegamento non interrompe le rilevazioni delle gare');
+$other=$root;$other['id']='altro';$other['url']=str_replace('00102708','00102709',Endu::PISA);
+$n=EventTree::normalize([$other,$root,$child]);
+treeCheck($n[2]['parentId']==='pisa','Non collega gare a eventi con diversa fonte');
+$duplicate=$root;$duplicate['id']='duplicato';
+$n=EventTree::normalize([$root,$duplicate,$child]);
+treeCheck(!isset($n[2]['parentId']),'Fonti ambigue restano visibili come righe indipendenti');
+$explicit=$child;$explicit['parentId']='duplicato';
+treeCheck(EventTree::normalize([$root,$duplicate,$explicit])[2]['parentId']==='duplicato','Associazione esplicita risolve una fonte ambigua');
+$independent=$child;$independent['parentId']=null;
+treeCheck(EventTree::normalize([$root,$independent])[1]['parentId']===null,'Rispetta una scelta esplicita di riga indipendente');
+$bad=$child;$bad['parentId']='inesistente';
+treeReject(static fn()=>EventTree::normalize([$root,$bad]),'Rifiuta principali inesistenti');
+$bad['parentId']=$bad['id'];
+treeReject(static fn()=>EventTree::normalize([$root,$bad]),'Rifiuta autoreferenze');
+$bad['parentId']='altro';
+treeReject(static fn()=>EventTree::normalize([$root,$other,$bad]),'Rifiuta collegamenti tra fonti diverse');
+$grandchild=$child;$grandchild['id']='terzo';$grandchild['parentId']='mezza';
+$child['parentId']='pisa';
+treeReject(static fn()=>EventTree::normalize([$root,$child,$grandchild]),'Rifiuta gare dentro altre gare');
+$n=EventTree::normalize([$child,$root]);
+treeCheck($n[0]['parentId']==='pisa' && $n[1]['url']===Endu::PISA,'Gestisce anche gare che precedono il principale nella configurazione');
+$directory=sys_get_temp_dir().'/iscrizioni-tree-'.bin2hex(random_bytes(6));mkdir($directory,0700);
+register_shutdown_function(static function()use($directory){foreach(glob($directory.'/*')?:[] as $file)unlink($file);rmdir($directory);});
+$store=new Store($directory);
+$store->db->prepare('UPDATE configuration SET events=? WHERE id=1')->execute([json_encode([$root,$child],JSON_THROW_ON_ERROR)]);
+$store->record($child,150,(new DateTimeImmutable('2026-11-02 04:00:00',new DateTimeZone('Europe/Rome')))->getTimestamp());
+$state=$store->state('2026-11-02');
+treeCheck($state['events'][0]['url']===Endu::PISA && $state['events'][1]['parentId']==='pisa','Le vecchie configurazioni sono lette con la gerarchia senza reset');
+treeCheck($state['stats']['mezza']['count']===150 && (int)$store->db->query('SELECT count(*) FROM samples')->fetchColumn()===1,'Le rilevazioni delle gare restano disponibili dopo la migrazione');
+$store->save($state['events'],$state['revision']);
+$raw=json_decode($store->db->query('SELECT events FROM configuration WHERE id=1')->fetchColumn(),true);
+treeCheck($raw[1]['parentId']==='pisa' && $raw[0]['url']===Endu::PISA,'Salva la relazione nel database e nei backup');
+echo "\n$passed verifiche gerarchia superate.\n";

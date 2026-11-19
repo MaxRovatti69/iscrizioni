@@ -52,4 +52,4 @@ Dopo i test HTTP e browser standard su una fixture locale nuova, eseguire:
 php tests/groups-browser.php /tmp/iscrizioni-browser/credentials.json
 ```
 
-Il test passa Pisa al JSON per gruppi, seleziona gli ID della Maratona e crea una riga di gara. Usa il JSON Endu reale e verifica che il totale corrisponda ai gruppi scelti, senza copiare storico o dati giornalieri dall’evento complessivo. Eseguirlo su una configurazione di prova che non abbia ancora effettuato il passaggio ai gruppi.
+Il test carica i gruppi di Pisa mantenendo il principale su entrants.json, seleziona gli ID della Maratona e crea una riga figlia. Verifica apertura e chiusura della tendina e lo stato inizialmente chiuso dopo un ricaricamento. Usa il JSON Endu reale e verifica che il totale corrisponda ai gruppi scelti, senza copiare storico o dati giornalieri dall’evento complessivo. Eseguirlo su una fixture nuova. La migrazione delle vecchie righe, i collegamenti ambigui e la conservazione dei dati sono coperti da `php tests/hierarchy.php`.
